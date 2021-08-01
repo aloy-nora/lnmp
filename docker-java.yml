@@ -78,7 +78,7 @@ services:
       - 443:443
     volumes:
       - ./config/nginx-korant:/etc/nginx/conf.d:ro,cached
-      - ./app:/app
+      - /opt/sources/frontend:/app
       - ./config/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,cached
       - ./log/nginx:/var/log/nginx:cached
       - << : *tmpfs

@@ -1,0 +1,108 @@
+version: "3.8"
+
+x-common:
+  &common
+  restart: always
+  env_file: ./cli/timezone.env
+  networks:
+    - backend
+
+x-tmpfs:
+  &tmpfs
+  type: tmpfs
+  target: /run
+
+services:
+  # oracle:
+  #   << : *common
+  #   image: oracleinanutshell/oracle-xe-11g:latest
+  #   evironment:
+  #     ORACLE_ALLOW_REMOTE: true
+  #     ORACLE_DISABLE_ASYNCH_IO: true
+  #   ports:
+  #     - 1521:1521
+
+  java:
+    << : *common
+    image: masseffect/korant-dns:1
+    ports:
+      - 8090:8090
+
+  gofastdfs:
+    << : *common
+    image: sjqzhang/go-fastdfs
+    ports:
+      - 8080:8080
+    environment:
+      GO_FASTDFS_DIR: /data
+    volumes:
+      - gofastdfs_data:/data:cached
+      - gofastdfs_install_data:/usr/local/go-fastdfs/data
+
+  redis:
+    << : *common
+    image: redis:6.2.5-alpine
+    ports:
+      - 6379:6379
+    volumes:
+      - ./config/redis/redis.conf:/redis.conf:ro,cached
+      # - redis-data:/data:cached
+      - type: volume
+        source: redis_data
+        target: /data
+        volume:
+          nocopy: true
+      - ./log/redis:/var/log/redis:cached
+      - << : *tmpfs
+    # set config by command
+    command: [
+      "redis-server",
+      "/redis.conf",
+      "--daemonize no",
+      "--logfile /var/log/redis/redis.log",
+      "--bind 0.0.0.0",
+      "--appendonly yes",
+      # "--save \"\"",
+      "--aof-use-rdb-preamble yes"
+      ]
+    healthcheck:
+      test: ["CMD","redis-cli","ping"]
+      retries: 3
+      timeout: 5s
+
+  nginx:
+    << : *common
+    image: nginx:1.21.0-alpine
+    ports:
+      - 80:80
+      - 443:443
+    volumes:
+      - ./config/nginx-korant:/etc/nginx/conf.d:ro,cached
+      - ./app:/app
+      - ./config/etc/nginx/nginx.conf:/etc/nginx/nginx.conf:ro,cached
+      - ./log/nginx:/var/log/nginx:cached
+      - << : *tmpfs
+    working_dir: /app
+    healthcheck:
+      test: ["CMD","nginx","-t"]
+
+  gitea:
+    << : *common
+    image: gitea/gitea:1.14.5
+    environment:
+      - USER_UID=1000
+      - USER_GID=1000
+    volumes:
+      - gitea_data:/data
+    ports:
+      - "3000:3000"
+      - "222:22"
+
+networks:
+  backend:
+
+volumes:
+  redis_data:
+  gofastdfs_data:
+  gofastdfs_install_data:
+  gitea_data:

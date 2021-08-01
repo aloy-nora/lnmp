@@ -1,0 +1,28 @@
+# First stage - Compiling application
+FROM masseffect/maven:3.8.1-jdk-11-korant as builder
+
+ENV APP_HOME=/app
+RUN mkdir -p $APP_HOME
+WORKDIR $APP_HOME
+ADD pom.xml $APP_HOME
+
+# get all the downloads out of the way
+RUN ["/usr/local/bin/mvn-entrypoint.sh","mvn","verify","clean","--fail-never"]
+
+# add source
+ADD . $APP_HOME
+
+# run maven verify
+RUN ["/usr/local/bin/mvn-entrypoint.sh","mvn","verify"]
+
+# Second stage - build image
+FROM openjdk:8-jre-alpine
+
+COPY --from=builder /app/target/*.jar /app.jar
+
+ENV JAVA_OPTS=""
+ENV SERVER_PORT 8080
+
+EXPOSE ${SERVER_PORT}
+
+ENTRYPOINT [ "sh", "-c", "java $JAVA_OPTS -Djava.security.egd=file:/dev/urandom -jar /app.jar --spring.profiles.active=docker" ]
